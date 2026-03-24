@@ -18,6 +18,12 @@
 (function FontManagerBootstrap() {
   "use strict";
 
+  console.info(
+    "%c Home Assistant Custom Fonts %c v1.0.0 ",
+    "background:#6200ee;color:#fff;padding:2px 6px;border-radius:4px 0 0 4px",
+    "background:#333;color:#fff;padding:2px 6px;border-radius:0 4px 4px 0"
+  );
+
   // ─── Constants ─────────────────────────────────────────────────────────────
   const ATTR = "data-font-manager";          // marker attribute on injected styles
   const GOOGLE_ATTR = "data-fm-google";      // marker on Google Fonts <link>
@@ -25,20 +31,6 @@
   const RELOAD_DELAY_MS = 100;              // debounce for MutationObserver
 
   // ─── Utility ───────────────────────────────────────────────────────────────
-
-  /** Get the current HA auth token from localStorage. */
-  function getAuthToken() {
-    try {
-      const raw = localStorage.getItem("hassTokens");
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      // hassTokens is a map keyed by token endpoint
-      const first = Object.values(parsed)[0];
-      return first?.access_token ?? null;
-    } catch {
-      return null;
-    }
-  }
 
   /** Debounce a function — collapses rapid successive calls into one. */
   function debounce(fn, delay) {
@@ -84,25 +76,35 @@
       this._startMutationObserver();
       this._listenForConfigChanges();
       console.info(
-        "[FontManager] Initialized. Font:",
-        this._config?.font_family ?? "none",
+        "[Home Assistant Custom Fonts] Initialized. Font:",
+        this._config?.font_family ?? "none (check config)",
         "| Enabled:", this._config?.enabled ?? false
       );
     }
 
     // ── Config loading ────────────────────────────────────────────────────────
 
-    async _loadConfig() {
-      try {
-        const token = getAuthToken();
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const res = await fetch(API_CONFIG, { headers });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        this._config = await res.json();
-      } catch (err) {
-        console.warn("[FontManager] Failed to load config:", err.message);
-        this._config = null;
+    async _loadConfig(retries = 3) {
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+          // GET /api/font_manager/config is intentionally public.
+          // Avoids token race-condition: the JS module loads before HA
+          // auth tokens are accessible in the DOM.
+          const res = await fetch(API_CONFIG, { credentials: "same-origin" });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          this._config = await res.json();
+          return; // success — exit loop
+        } catch (err) {
+          console.warn(
+            `[Home Assistant Custom Fonts] Config load attempt ${attempt}/${retries}:`,
+            err.message
+          );
+          if (attempt < retries) {
+            await new Promise((r) => setTimeout(r, 800 * attempt));
+          }
+        }
       }
+      this._config = null;
     }
 
     // ── CSS generation ────────────────────────────────────────────────────────

@@ -63,25 +63,36 @@ def _get_config(hass: HomeAssistant, entry: ConfigEntry) -> dict:
 
 
 class FontManagerConfigView(HomeAssistantView):
-    """GET/POST /api/font_manager/config."""
+    """GET/POST /api/font_manager/config.
+
+    GET is intentionally unauthenticated — font family names and URLs are
+    not sensitive data, and the JS module injected via add_extra_js_url
+    runs before HA's auth token is available in the DOM.
+
+    POST requires auth (enforced manually below).
+    """
 
     url = "/api/font_manager/config"
     name = "api:font_manager:config"
-    requires_auth = True
+    requires_auth = False  # GET is public; POST checks auth manually
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self._hass = hass
         self._entry = entry
 
     async def get(self, request: web.Request) -> web.Response:
-        """Return the current font configuration."""
+        """Return the current font configuration (public)."""
         config = _get_config(self._hass, self._entry)
-        # Enrich with preset URLs for the frontend
         config["presets"] = GOOGLE_FONTS_PRESETS
         return self.json(config)
 
     async def post(self, request: web.Request) -> web.Response:
-        """Update the font configuration."""
+        """Update the font configuration (requires auth)."""
+        # Manual auth check since requires_auth = False on the class
+        user = request.get("hass_user")
+        if user is None:
+            return self.json_message("Unauthorized", status_code=401)
+
         try:
             data: dict = await request.json()
         except Exception:
