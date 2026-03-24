@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# Uploaded fonts (user data — not committed)
+custom_components/font_manager/fonts/*.woff2
+custom_components/font_manager/fonts/*.woff
+custom_components/font_manager/fonts/*.ttf
+custom_components/font_manager/fonts/*.otf
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp

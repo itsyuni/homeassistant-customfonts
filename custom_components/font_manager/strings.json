@@ -1,0 +1,37 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Assistant Custom Fonts Setup",
+        "description": "Configure global font settings for Home Assistant UI.",
+        "data": {
+          "enabled": "Enable Home Assistant Custom Fonts",
+          "font_source": "Font Source",
+          "font_family": "Font Family Name",
+          "font_url": "Font URL (Google Fonts CSS or direct file URL)",
+          "font_size": "Base Font Size (px, 0 = default)",
+          "apply_to_shadow_dom": "Apply to Shadow DOM components"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Home Assistant Custom Fonts is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Home Assistant Custom Fonts Options",
+        "description": "Available Google Fonts presets: {presets}",
+        "data": {
+          "enabled": "Enable Home Assistant Custom Fonts",
+          "font_source": "Font Source",
+          "font_family": "Font Family Name",
+          "font_url": "Font URL",
+          "font_size": "Base Font Size (px, 0 = default)",
+          "apply_to_shadow_dom": "Apply to Shadow DOM components"
+        }
+      }
+    }
+  }
+}
