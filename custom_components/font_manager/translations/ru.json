@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Настройка Home Assistant Custom Fonts",
+        "description": "Настройте глобальные параметры шрифтов для интерфейса Home Assistant. После настройки используйте панель Custom Fonts для расширенных параметров.",
+        "data": {
+          "enabled": "Включить Custom Fonts",
+          "font_source": "Источник шрифта",
+          "font_family": "Название шрифта",
+          "font_url": "URL шрифта (Google Fonts CSS или прямая ссылка)",
+          "font_size": "Базовый размер шрифта в px (0 = по умолчанию)",
+          "apply_to_shadow_dom": "Применять шрифты к Shadow DOM компонентам"
+        },
+        "data_description": {
+          "font_url": "Для Google Fonts вставьте полный URL таблицы стилей с fonts.google.com",
+          "font_size": "Установите 0, чтобы сохранить оригинальный размер шрифта Home Assistant"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Home Assistant Custom Fonts уже настроен. Используйте параметры для изменения настроек."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Параметры Home Assistant Custom Fonts",
+        "description": "Доступные пресеты шрифтов: {presets}",
+        "data": {
+          "enabled": "Включить Custom Fonts",
+          "font_source": "Источник шрифта",
+          "font_family": "Название шрифта",
+          "font_url": "URL шрифта",
+          "font_size": "Базовый размер шрифта в px (0 = по умолчанию)",
+          "apply_to_shadow_dom": "Применять шрифты к Shadow DOM компонентам"
+        }
+      }
+    }
+  }
+}
