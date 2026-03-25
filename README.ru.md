@@ -9,6 +9,9 @@
 
 > Глобальная замена шрифтов во всём интерфейсе Home Assistant (Lovelace) — Google Fonts, загрузка собственных шрифтов, системные шрифты. Поддержка Shadow DOM включена.
 
+<img width="700" src="https://github.com/user-attachments/assets/09b717a4-5b5b-442c-b775-9e318908f639" />
+
+
 ---
 
 ## ✨ Возможности
