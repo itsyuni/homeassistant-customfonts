@@ -9,6 +9,9 @@
 
 > Global font replacement across the entire Home Assistant (Lovelace) interface — Google Fonts, custom font uploads, system fonts. Full Shadow DOM support included.
 
+<img width="700" src="https://github.com/user-attachments/assets/f8a56e9a-b69d-458f-b372-287e092e08de" />
+
+
 ---
 
 ## ✨ Features
