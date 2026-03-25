@@ -16,7 +16,6 @@ from homeassistant.components.panel_custom import async_register_panel
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.helpers.typing import ConfigType
 
 from .api import (
     FontManagerConfigView,
@@ -45,12 +44,6 @@ _LOGGER = logging.getLogger(__name__)
 # Path to the frontend directory inside the integration
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 FONTS_DIR = Path(__file__).parent / "fonts"
-
-
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up Home Assistant Custom Fonts from yaml (not supported, use UI)."""
-    hass.data.setdefault(DOMAIN, {})
-    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

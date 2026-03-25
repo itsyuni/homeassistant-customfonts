@@ -1,13 +1,13 @@
 {
   "domain": "font_manager",
   "name": "Home Assistant Custom Fonts",
-  "version": "1.0.0",
-  "documentation": "https://github.com/itsyuni/homeassistant-customfonts",
-  "issue_tracker": "https://github.com/itsyuni/homeassistant-customfonts/issues",
+  "after_dependencies": ["frontend"],
   "codeowners": ["@itsyuni"],
   "config_flow": true,
-  "iot_class": "local_push",
-  "requirements": ["aiofiles>=23.1.0"],
   "dependencies": ["http", "frontend", "panel_custom"],
-  "after_dependencies": ["frontend"]
+  "documentation": "https://github.com/itsyuni/homeassistant-customfonts",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/itsyuni/homeassistant-customfonts/issues",
+  "requirements": ["aiofiles>=23.1.0"],
+  "version": "1.0.0"
 }

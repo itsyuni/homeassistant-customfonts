@@ -1,0 +1,5 @@
+apply:
+  name: Apply Fonts
+  description: >-
+    Re-apply custom fonts to the Home Assistant interface.
+    Useful after changing font settings manually or via automations.
