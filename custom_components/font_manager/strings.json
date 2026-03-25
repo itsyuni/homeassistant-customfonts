@@ -11,6 +11,10 @@
           "font_url": "Font URL (Google Fonts CSS or direct file URL)",
           "font_size": "Base Font Size (px, 0 = default)",
           "apply_to_shadow_dom": "Apply to Shadow DOM components"
+        },
+        "data_description": {
+          "font_url": "For Google Fonts, paste the full CSS URL from fonts.google.com",
+          "font_size": "Set to 0 to keep the original Home Assistant font size"
         }
       }
     },
