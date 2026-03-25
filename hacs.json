@@ -1,6 +1,5 @@
 {
   "name": "Home Assistant Custom Fonts",
   "render_readme": true,
-  "homeassistant": "2023.9.0",
-  "iot_class": "local_push"
+  "homeassistant": "2023.9.0"
 }
