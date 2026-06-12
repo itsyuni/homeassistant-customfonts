@@ -10,11 +10,12 @@
           "font_family": "Название шрифта",
           "font_url": "URL шрифта (Google Fonts CSS или прямая ссылка)",
           "font_size": "Базовый размер шрифта в px (0 = по умолчанию)",
-          "apply_to_shadow_dom": "Применять шрифты к Shadow DOM компонентам"
+          "apply_to_shadow_dom": "Принудительно в Shadow DOM (устаревший режим)"
         },
         "data_description": {
           "font_url": "Для Google Fonts вставьте полный URL таблицы стилей с fonts.google.com",
-          "font_size": "Установите 0, чтобы сохранить оригинальный размер шрифта Home Assistant"
+          "font_size": "Установите 0, чтобы сохранить оригинальный размер шрифта Home Assistant",
+          "apply_to_shadow_dom": "Оставьте ВЫКЛ. Включайте только для старых тем, игнорирующих CSS-переменные HA. Принудительная инжекция может ломать кастомные карточки (flipdown-timer-card, scheduler-card, bubble-card и др.) и отступы badge-row в Android Companion App."
         }
       }
     },
@@ -33,7 +34,10 @@
           "font_family": "Название шрифта",
           "font_url": "URL шрифта",
           "font_size": "Базовый размер шрифта в px (0 = по умолчанию)",
-          "apply_to_shadow_dom": "Применять шрифты к Shadow DOM компонентам"
+          "apply_to_shadow_dom": "Принудительно в Shadow DOM (устаревший режим)"
+        },
+        "data_description": {
+          "apply_to_shadow_dom": "Оставьте ВЫКЛ. Включайте только для старых тем, игнорирующих CSS-переменные HA. Принудительная инжекция может ломать кастомные карточки (flipdown-timer-card, scheduler-card, bubble-card и др.) и отступы badge-row в Android Companion App."
         }
       }
     }

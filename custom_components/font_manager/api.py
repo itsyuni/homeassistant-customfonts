@@ -33,12 +33,25 @@ from .const import (
     ALLOWED_FONT_EXTENSIONS,
     MAX_FONT_FILE_SIZE,
     FONTS_PATH,
+    FONTS_SUBDIR,
+    API_CONFIG,
+    API_FONTS,
+    API_UPLOAD,
+    API_FONT_FILE,
     GOOGLE_FONTS_PRESETS,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-FONTS_DIR = Path(__file__).parent / "fonts"
+
+def get_fonts_dir(hass: HomeAssistant) -> Path:
+    """Return the persistent fonts directory under HA config.
+
+    Storing uploaded fonts under `<config>/font_manager/fonts/` (rather than
+    inside the integration package) survives HACS upgrades, which replace the
+    `custom_components/font_manager/` directory wholesale.
+    """
+    return Path(hass.config.path(FONTS_SUBDIR))
 
 
 def _default_config() -> dict:
@@ -63,7 +76,7 @@ def _get_config(hass: HomeAssistant, entry: ConfigEntry) -> dict:
 
 
 class FontManagerConfigView(HomeAssistantView):
-    """GET/POST /api/font_manager/config.
+    """GET/POST /font_manager/v1/config.
 
     GET is intentionally unauthenticated — font family names and URLs are
     not sensitive data, and the JS module injected via add_extra_js_url
@@ -72,8 +85,8 @@ class FontManagerConfigView(HomeAssistantView):
     POST requires auth (enforced manually below).
     """
 
-    url = "/api/font_manager/config"
-    name = "api:font_manager:config"
+    url = API_CONFIG
+    name = "font_manager:v1:config"
     requires_auth = False  # GET is public; POST checks auth manually
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -124,10 +137,10 @@ class FontManagerConfigView(HomeAssistantView):
 
 
 class FontManagerFontsView(HomeAssistantView):
-    """GET /api/font_manager/fonts — list uploaded custom fonts."""
+    """GET /font_manager/v1/fonts — list uploaded custom fonts."""
 
-    url = "/api/font_manager/fonts"
-    name = "api:font_manager:fonts"
+    url = API_FONTS
+    name = "font_manager:v1:fonts"
     requires_auth = True
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -136,11 +149,13 @@ class FontManagerFontsView(HomeAssistantView):
 
     async def get(self, request: web.Request) -> web.Response:
         """List all uploaded font files."""
+        fonts_dir = get_fonts_dir(self._hass)
+
         def _list_fonts() -> list[dict]:
-            fonts = []
-            if not FONTS_DIR.exists():
+            fonts: list[dict] = []
+            if not fonts_dir.exists():
                 return fonts
-            for f in sorted(FONTS_DIR.iterdir()):
+            for f in sorted(fonts_dir.iterdir()):
                 if f.suffix.lower() in ALLOWED_FONT_EXTENSIONS:
                     fonts.append(
                         {
@@ -158,10 +173,10 @@ class FontManagerFontsView(HomeAssistantView):
 
 
 class FontManagerUploadView(HomeAssistantView):
-    """POST /api/font_manager/upload — upload a custom font file."""
+    """POST /font_manager/v1/upload — upload a custom font file."""
 
-    url = "/api/font_manager/upload"
-    name = "api:font_manager:upload"
+    url = API_UPLOAD
+    name = "font_manager:v1:upload"
     requires_auth = True
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -193,7 +208,14 @@ class FontManagerUploadView(HomeAssistantView):
                 status_code=415,
             )
 
-        dest = FONTS_DIR / safe_name
+        fonts_dir = get_fonts_dir(self._hass)
+        # Ensure the persistent fonts directory exists. mkdir() is sync I/O,
+        # so offload it to the executor.
+        await self._hass.async_add_executor_job(
+            lambda: fonts_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+        )
+
+        dest = fonts_dir / safe_name
         total_size = 0
 
         try:
@@ -205,7 +227,10 @@ class FontManagerUploadView(HomeAssistantView):
                     total_size += len(chunk)
                     if total_size > MAX_FONT_FILE_SIZE:
                         await f.close()
-                        dest.unlink(missing_ok=True)
+                        # unlink() is sync — offload to executor.
+                        await self._hass.async_add_executor_job(
+                            lambda: dest.unlink(missing_ok=True)
+                        )
                         return self.json_message(
                             f"File too large. Max size: {MAX_FONT_FILE_SIZE // 1024 // 1024} MB",
                             status_code=413,
@@ -230,10 +255,10 @@ class FontManagerUploadView(HomeAssistantView):
 
 
 class FontManagerFontFileView(HomeAssistantView):
-    """DELETE /api/font_manager/fonts/{filename} — delete an uploaded font."""
+    """DELETE /font_manager/v1/fonts/{filename} — delete an uploaded font."""
 
-    url = "/api/font_manager/fonts/{filename}"
-    name = "api:font_manager:font_file"
+    url = API_FONT_FILE
+    name = "font_manager:v1:font_file"
     requires_auth = True
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -244,14 +269,24 @@ class FontManagerFontFileView(HomeAssistantView):
         """Delete a specific uploaded font file."""
         # Sanitize: no directory traversal
         safe_name = Path(filename).name
-        target = FONTS_DIR / safe_name
+        suffix = Path(safe_name).suffix.lower()
 
-        if not target.exists() or target.suffix.lower() not in ALLOWED_FONT_EXTENSIONS:
+        if suffix not in ALLOWED_FONT_EXTENSIONS:
             return self.json_message("Font not found", status_code=404)
 
-        def _delete() -> None:
-            target.unlink()
+        target = get_fonts_dir(self._hass) / safe_name
 
-        await self._hass.async_add_executor_job(_delete)
+        # exists() is sync filesystem I/O — offload to executor along with
+        # the actual delete to avoid blocking the event loop.
+        def _delete_if_exists() -> bool:
+            if not target.exists():
+                return False
+            target.unlink()
+            return True
+
+        deleted = await self._hass.async_add_executor_job(_delete_if_exists)
+        if not deleted:
+            return self.json_message("Font not found", status_code=404)
+
         _LOGGER.info("Font deleted: %s", safe_name)
         return self.json({"status": "ok", "deleted": safe_name})

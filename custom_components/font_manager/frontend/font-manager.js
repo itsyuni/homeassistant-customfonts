@@ -27,7 +27,7 @@
   // ─── Constants ─────────────────────────────────────────────────────────────
   const ATTR = "data-font-manager";          // marker attribute on injected styles
   const GOOGLE_ATTR = "data-fm-google";      // marker on Google Fonts <link>
-  const API_CONFIG = "/api/font_manager/config";
+  const API_CONFIG = "/font_manager/v1/config";
   const RELOAD_DELAY_MS = 100;              // debounce for MutationObserver
 
   // ─── Utility ───────────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@
     async _loadConfig(retries = 3) {
       for (let attempt = 1; attempt <= retries; attempt++) {
         try {
-          // GET /api/font_manager/config is intentionally public.
+          // GET /font_manager/v1/config is intentionally public.
           // Avoids token race-condition: the JS module loads before HA
           // auth tokens are accessible in the DOM.
           const res = await fetch(API_CONFIG, { credentials: "same-origin" });
@@ -110,73 +110,137 @@
     // ── CSS generation ────────────────────────────────────────────────────────
 
     /**
-     * Build the CSS string that will be injected into document and shadow roots.
+     * Build the CSS string injected into individual shadow roots.
+     *
+     * This is now a SOFT fallback used only when `apply_to_shadow_dom` is true.
+     * The primary mechanism is CSS custom properties set globally (see
+     * `_buildGlobalCSS`) — those propagate through shadow DOM boundaries
+     * automatically, so any component that reads `--ha-font-family-*` or
+     * `--mdc-typography-*-font-family` picks up the new font without us
+     * touching its shadow root at all.
+     *
+     * IMPORTANT design choices:
+     *   1. NO universal selector (`*, *::before, *::after`). Such a rule
+     *      overrides icon-font pseudo-elements (Material Icons via
+     *      `::before { font-family: ... }`) and the digital-clock fonts
+     *      used by community cards (flipdown-timer-card, scheduler-card,
+     *      bubble-card), causing layout regressions — see issue #1, #2.
+     *   2. NO `!important`. A component that explicitly sets its own
+     *      `font-family` (e.g. flipdown-timer-card's clock font) MUST win,
+     *      otherwise its layout breaks.
+     *   3. NO `font-size` on `:host`. Forcing a fixed px size on every
+     *      shadow host breaks `em` / `rem` math in the component subtree.
+     *
+     * Inheritance from `:host` carries the font-family into descendant
+     * elements that haven't set their own. Components with explicit
+     * font-family declarations (icons, digital-clocks, etc.) keep theirs.
      * @returns {string}
      */
     _buildCSS() {
       const cfg = this._config;
       if (!cfg || !cfg.enabled) return "";
 
-      const family = cfg.font_family?.trim();
-      const fallbacks = Array.isArray(cfg.fallback_fonts)
-        ? cfg.fallback_fonts
-        : ["system-ui", "-apple-system", "sans-serif"];
+      const stack = this._buildFontStack();
 
-      // Build the font stack: 'CustomFont', system-ui, -apple-system, sans-serif
-      const stack = [
-        family ? `'${family}'` : null,
-        ...fallbacks,
-      ]
-        .filter(Boolean)
-        .join(", ");
-
-      const sizeRule =
-        cfg.font_size && cfg.font_size > 0
-          ? `font-size: ${cfg.font_size}px !important;`
-          : "";
-
-      // Apply to everything inside a shadow root.
-      // :host applies to the custom element itself.
-      return `
-        :host { font-family: ${stack} !important; ${sizeRule} }
-        *, *::before, *::after { font-family: ${stack} !important; }
-        ${sizeRule ? `html, body { font-size: ${cfg.font_size}px !important; }` : ""}
-      `.trim();
+      // Soft inheritance only. No !important, no universal selector.
+      // Components with explicit font-family take precedence.
+      return `:host { font-family: ${stack}; }`;
     }
 
     /**
-     * Build CSS for document <head> injection (non-shadow context).
+     * Build CSS injected into `document.head`.
+     *
+     * Strategy: set HA's typography CSS custom properties on `:root` (and
+     * `html, body`). CSS custom properties propagate through shadow DOM
+     * boundaries, so every HA component and most community cards (which
+     * read these variables) automatically pick up the new font without us
+     * having to inject styles into each shadow root.
+     *
+     * Variables we override (covers HA core, MWC, and Paper-era components):
+     *   • Modern HA:     --ha-font-family-{body,heading,longform}
+     *   • MWC bridge:    --mdc-typography-font-family + per-style overrides
+     *   • Legacy Paper:  --paper-font-{body1,subhead,headline,title,caption,
+     *                     common-base}_-_font-family
+     *
+     * `font-size` (when configured) is set on `html` so `rem` cascades
+     * naturally without forcing pixel sizes on individual hosts.
      * @returns {string}
      */
     _buildGlobalCSS() {
       const cfg = this._config;
       if (!cfg || !cfg.enabled) return "";
 
-      const family = cfg.font_family?.trim();
-      const fallbacks = Array.isArray(cfg.fallback_fonts)
-        ? cfg.fallback_fonts
-        : ["system-ui", "-apple-system", "sans-serif"];
+      const stack = this._buildFontStack();
 
-      const stack = [
-        family ? `'${family}'` : null,
-        ...fallbacks,
-      ]
-        .filter(Boolean)
-        .join(", ");
+      // Variables that propagate through shadow DOM and are read by
+      // HA core, Material Web Components, Paper-era components, and most
+      // community custom cards (bubble-card, mushroom, etc.).
+      //
+      // We mark each override as !important so that HA Themes (which set the
+      // same variables on `html`) cannot beat us. Note: `!important` on a
+      // CSS custom property only affects who wins when defining the variable
+      // — it does NOT propagate as `!important` to consumers of `var(--x)`.
+      // So components that explicitly set `font-family: 'Material Icons'`
+      // (icon fonts) or their own clock font (flipdown) remain untouched.
+      const varOverrides = [
+        // Modern HA typography
+        `--ha-font-family-body: ${stack} !important;`,
+        `--ha-font-family-heading: ${stack} !important;`,
+        `--ha-font-family-longform: ${stack} !important;`,
+        // Material Web Components base + per-style
+        `--mdc-typography-font-family: ${stack} !important;`,
+        `--mdc-typography-body1-font-family: ${stack} !important;`,
+        `--mdc-typography-body2-font-family: ${stack} !important;`,
+        `--mdc-typography-subtitle1-font-family: ${stack} !important;`,
+        `--mdc-typography-subtitle2-font-family: ${stack} !important;`,
+        `--mdc-typography-headline1-font-family: ${stack} !important;`,
+        `--mdc-typography-headline2-font-family: ${stack} !important;`,
+        `--mdc-typography-headline3-font-family: ${stack} !important;`,
+        `--mdc-typography-headline4-font-family: ${stack} !important;`,
+        `--mdc-typography-headline5-font-family: ${stack} !important;`,
+        `--mdc-typography-headline6-font-family: ${stack} !important;`,
+        `--mdc-typography-button-font-family: ${stack} !important;`,
+        `--mdc-typography-caption-font-family: ${stack} !important;`,
+        `--mdc-typography-overline-font-family: ${stack} !important;`,
+        // Legacy Paper-style components
+        `--paper-font-body1_-_font-family: ${stack} !important;`,
+        `--paper-font-subhead_-_font-family: ${stack} !important;`,
+        `--paper-font-headline_-_font-family: ${stack} !important;`,
+        `--paper-font-title_-_font-family: ${stack} !important;`,
+        `--paper-font-caption_-_font-family: ${stack} !important;`,
+        `--paper-font-common-base_-_font-family: ${stack} !important;`,
+      ].join("\n  ");
 
       const sizeRule =
         cfg.font_size && cfg.font_size > 0
           ? `\n  font-size: ${cfg.font_size}px !important;`
           : "";
 
+      // :root + html + body to be safe — same declaration block
       return `
-        html, body {
-          font-family: ${stack} !important;${sizeRule}
-        }
-        *, *::before, *::after {
-          font-family: ${stack} !important;
+        :root,
+        html,
+        body {
+          ${varOverrides}
+          font-family: ${stack};${sizeRule}
         }
       `.trim();
+    }
+
+    /**
+     * Build the comma-separated font stack from config.
+     * @returns {string}
+     */
+    _buildFontStack() {
+      const cfg = this._config;
+      const family = cfg?.font_family?.trim();
+      const fallbacks = Array.isArray(cfg?.fallback_fonts)
+        ? cfg.fallback_fonts
+        : ["system-ui", "-apple-system", "sans-serif"];
+
+      return [family ? `'${family}'` : null, ...fallbacks]
+        .filter(Boolean)
+        .join(", ");
     }
 
     /** Build a @font-face declaration for custom (uploaded) fonts. */

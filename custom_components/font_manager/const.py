@@ -31,22 +31,29 @@ DEFAULT_FONT_URL = (
 )
 DEFAULT_FONT_SIZE = None
 DEFAULT_FALLBACK_FONTS = ["system-ui", "-apple-system", "sans-serif"]
-DEFAULT_APPLY_TO_SHADOW_DOM = True
+DEFAULT_APPLY_TO_SHADOW_DOM = False
 DEFAULT_FONT_WEIGHT = "400"
 
 # Static paths
 STATIC_PATH = "/font_manager/frontend"
 FONTS_PATH = "/font_manager/fonts"
 
+# Persistent on-disk location for uploaded fonts (under <config>/).
+# Stored OUTSIDE the integration package so HACS upgrades don't wipe them.
+FONTS_SUBDIR = "font_manager/fonts"
+
 # Frontend files
 FRONTEND_SCRIPT = "font-manager.js"
 PANEL_SCRIPT = "font-manager-panel.js"
 
-# API endpoints
-API_BASE = "font_manager"
-API_CONFIG = f"api/{API_BASE}/config"
-API_FONTS = f"api/{API_BASE}/fonts"
-API_UPLOAD = f"api/{API_BASE}/upload"
+# REST API paths
+# We deliberately avoid the `/api/*` namespace which is reserved for HA core.
+# All custom endpoints live under `/font_manager/v1/*`.
+API_BASE = "/font_manager/v1"
+API_CONFIG = f"{API_BASE}/config"
+API_FONTS = f"{API_BASE}/fonts"
+API_UPLOAD = f"{API_BASE}/upload"
+API_FONT_FILE = f"{API_BASE}/fonts/{{filename}}"
 
 # Data store keys
 DATA_CONFIG = "config"

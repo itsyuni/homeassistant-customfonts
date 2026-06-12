@@ -7,7 +7,7 @@ Google Fonts, custom uploaded fonts, and system fonts.
 from __future__ import annotations
 
 import logging
-import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +22,7 @@ from .api import (
     FontManagerFontsView,
     FontManagerUploadView,
     FontManagerFontFileView,
+    get_fonts_dir,
 )
 from .const import (
     DOMAIN,
@@ -43,15 +44,64 @@ _LOGGER = logging.getLogger(__name__)
 
 # Path to the frontend directory inside the integration
 FRONTEND_DIR = Path(__file__).parent / "frontend"
-FONTS_DIR = Path(__file__).parent / "fonts"
+
+# Legacy on-disk location used in <= 1.0.1 — kept around solely so we can
+# migrate any uploaded fonts out of the integration package on first start
+# of a newer version. The package directory is wiped on every HACS upgrade,
+# so it's not a safe permanent home.
+_LEGACY_FONTS_DIR = Path(__file__).parent / "fonts"
+
+
+def _migrate_legacy_fonts(legacy_dir: Path, target_dir: Path) -> None:
+    """Move font files from the in-package legacy folder to the persistent one.
+
+    Runs in an executor (sync filesystem ops). Best-effort: failures are
+    logged but do not stop integration setup. Files that already exist at
+    the target are left untouched (the persistent copy wins).
+    """
+    if not legacy_dir.exists() or legacy_dir == target_dir:
+        return
+
+    target_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+
+    for src in legacy_dir.iterdir():
+        if not src.is_file():
+            continue
+        dest = target_dir / src.name
+        if dest.exists():
+            continue
+        try:
+            shutil.move(str(src), str(dest))
+            _LOGGER.info(
+                "Migrated uploaded font from legacy location: %s -> %s",
+                src,
+                dest,
+            )
+        except OSError as exc:
+            _LOGGER.warning(
+                "Failed to migrate legacy font %s: %s. "
+                "Move it manually to %s to preserve it across HACS upgrades.",
+                src,
+                exc,
+                target_dir,
+            )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Home Assistant Custom Fonts from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    # Ensure fonts directory exists
-    await hass.async_add_executor_job(FONTS_DIR.mkdir, 0o755, True, True)
+    # Persistent fonts directory under <config>/font_manager/fonts.
+    # Lives outside the integration package so HACS upgrades don't wipe it.
+    fonts_dir = get_fonts_dir(hass)
+
+    # Ensure fonts directory exists + migrate any legacy uploads.
+    # Both are sync filesystem ops — run in executor.
+    def _prepare_fonts_dir() -> None:
+        fonts_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+        _migrate_legacy_fonts(_LEGACY_FONTS_DIR, fonts_dir)
+
+    await hass.async_add_executor_job(_prepare_fonts_dir)
 
     # ── Static file serving ──────────────────────────────────────────────────
     # Serve the frontend JS files
@@ -65,12 +115,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ]
     )
 
-    # Serve uploaded font files
+    # Serve uploaded font files (from the persistent location)
     await hass.http.async_register_static_paths(
         [
             StaticPathConfig(
                 url_path=FONTS_PATH,
-                path=str(FONTS_DIR),
+                path=str(fonts_dir),
                 cache_headers=True,
             )
         ]

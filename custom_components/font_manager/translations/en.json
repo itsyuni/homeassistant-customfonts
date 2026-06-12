@@ -10,11 +10,12 @@
           "font_family": "Font Family Name",
           "font_url": "Font URL (Google Fonts CSS or custom URL)",
           "font_size": "Base Font Size in px (0 = keep default)",
-          "apply_to_shadow_dom": "Apply fonts to Shadow DOM components"
+          "apply_to_shadow_dom": "Force font into Shadow DOM (legacy fallback)"
         },
         "data_description": {
           "font_url": "For Google Fonts, paste the full CSS URL from fonts.google.com",
-          "font_size": "Set to 0 to keep the original Home Assistant font size"
+          "font_size": "Set to 0 to keep the original Home Assistant font size",
+          "apply_to_shadow_dom": "Leave OFF. Only enable for very old themes that ignore HA's CSS variables. Forcing the font may break custom cards (flipdown-timer-card, scheduler-card, bubble-card, etc.) and badge spacing on the Android Companion App."
         }
       }
     },
@@ -33,7 +34,10 @@
           "font_family": "Font Family Name",
           "font_url": "Font URL",
           "font_size": "Base Font Size in px (0 = keep default)",
-          "apply_to_shadow_dom": "Apply fonts to Shadow DOM components"
+          "apply_to_shadow_dom": "Force font into Shadow DOM (legacy fallback)"
+        },
+        "data_description": {
+          "apply_to_shadow_dom": "Leave OFF. Only enable for very old themes that ignore HA's CSS variables. Forcing the font may break custom cards (flipdown-timer-card, scheduler-card, bubble-card, etc.) and badge spacing on the Android Companion App."
         }
       }
     }

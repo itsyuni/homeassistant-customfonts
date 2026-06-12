@@ -19,8 +19,8 @@ const TRANSLATIONS = {
     section_general: "⚙️ General",
     label_enabled: "Enable Custom Fonts",
     hint_enabled: "Apply custom fonts globally to all UI elements",
-    label_shadow: "Apply to Shadow DOM",
-    hint_shadow: "Inject fonts into Web Components (recommended)",
+    label_shadow: "Force into Shadow DOM (legacy)",
+    hint_shadow: "Leave OFF. Only enable for very old themes — may break custom cards (flipdown-timer-card, bubble-card, scheduler-card) and badge spacing on Android.",
 
     section_source: "🔤 Font Source",
     label_source: "Source",
@@ -88,8 +88,8 @@ const TRANSLATIONS = {
     section_general: "⚙️ Основное",
     label_enabled: "Включить Custom Fonts",
     hint_enabled: "Применить шрифты глобально ко всем элементам интерфейса",
-    label_shadow: "Применять к Shadow DOM",
-    hint_shadow: "Внедрять шрифты в Web Components (рекомендуется)",
+    label_shadow: "Принудительно в Shadow DOM (устар.)",
+    hint_shadow: "Оставьте ВЫКЛ. Включайте только для старых тем — может ломать кастомные карты (flipdown-timer-card, bubble-card, scheduler-card) и отступы badge-row на Android.",
 
     section_source: "🔤 Источник шрифта",
     label_source: "Источник",
@@ -759,13 +759,55 @@ class FontManagerPanel extends HTMLElement {
 
   // ── Data loading ───────────────────────────────────────────────────────────
 
+  /**
+   * REST API base path for the integration.
+   *
+   * The `/api/*` namespace is reserved for HA core endpoints, so all our
+   * endpoints live under `/font_manager/v1/*`. This means we cannot use
+   * `hass.callApi(...)` (which prefixes `/api/`) — every call has to go
+   * through plain `fetch` with the user's auth token attached manually.
+   */
+  static get _apiBase() {
+    return "/font_manager/v1";
+  }
+
+  /**
+   * Send an authenticated request to a `/font_manager/v1/*` endpoint.
+   * Returns parsed JSON, throws on non-2xx responses.
+   */
+  async _apiFetch(method, path, body = null) {
+    const token = this._hass?.auth?.data?.access_token;
+    const url   = `${FontManagerPanel._apiBase}${path}`;
+    const init  = {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "same-origin",
+    };
+    if (body !== null) {
+      init.body = JSON.stringify(body);
+    }
+    const res = await fetch(url, init);
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        const err = await res.json();
+        if (err?.message) detail = err.message;
+      } catch { /* ignore */ }
+      throw new Error(`${res.status} ${detail}`);
+    }
+    return res.json();
+  }
+
   async _loadAll() {
     await Promise.all([this._loadConfig(), this._loadFonts()]);
   }
 
   async _loadConfig() {
     try {
-      const data = await this._hass.callApi("GET", "font_manager/config");
+      const data = await this._apiFetch("GET", "/config");
       this._config = data;
       this._populateForm(data);
       this._updatePreview();
@@ -776,7 +818,7 @@ class FontManagerPanel extends HTMLElement {
 
   async _loadFonts() {
     try {
-      const data = await this._hass.callApi("GET", "font_manager/fonts");
+      const data = await this._apiFetch("GET", "/fonts");
       this._fonts = data.fonts ?? [];
       this._renderFontList();
     } catch {
@@ -795,7 +837,7 @@ class FontManagerPanel extends HTMLElement {
     badge.className = `status-badge ${cfg.enabled ? "on" : "off"}`;
 
     s.getElementById("toggleEnabled").checked = !!cfg.enabled;
-    s.getElementById("toggleShadow").checked  = cfg.apply_to_shadow_dom !== false;
+    s.getElementById("toggleShadow").checked  = cfg.apply_to_shadow_dom === true;
 
     const source = cfg.font_source ?? "google";
     s.getElementById("fontSource").value = source;
@@ -1033,7 +1075,7 @@ class FontManagerPanel extends HTMLElement {
     btn.textContent = t.btn_saving;
 
     try {
-      await this._hass.callApi("POST", "font_manager/config", config);
+      await this._apiFetch("POST", "/config", config);
       this._config = { ...this._config, ...config };
       this._toast(t.toast_saved);
       this._populateForm(this._config);
@@ -1060,10 +1102,10 @@ class FontManagerPanel extends HTMLElement {
       enabled: true, font_source: "google",
       font_family: "Roboto",
       font_url: "https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap",
-      font_size: null, apply_to_shadow_dom: true,
+      font_size: null, apply_to_shadow_dom: false,
     };
     try {
-      await this._hass.callApi("POST", "font_manager/config", defaults);
+      await this._apiFetch("POST", "/config", defaults);
       this._config = { ...this._config, ...defaults };
       this._populateForm(this._config);
       this._updatePreview();
@@ -1093,10 +1135,13 @@ class FontManagerPanel extends HTMLElement {
     form.append("file", file);
 
     try {
-      const token = this._hass.auth?.data?.access_token;
-      const res   = await fetch("/api/font_manager/upload", {
+      // Upload uses multipart/form-data, so we cannot reuse `_apiFetch`
+      // (which sets a JSON content-type). Build the request manually.
+      const token = this._hass?.auth?.data?.access_token;
+      const res   = await fetch(`${FontManagerPanel._apiBase}/upload`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "same-origin",
         body: form,
       });
       if (!res.ok) {
@@ -1120,12 +1165,10 @@ class FontManagerPanel extends HTMLElement {
   async _deleteFont(filename) {
     if (!confirm(`${this.t.confirm_delete} "${filename}"?`)) return;
     try {
-      const token = this._hass.auth?.data?.access_token;
-      const res   = await fetch(
-        `/api/font_manager/fonts/${encodeURIComponent(filename)}`,
-        { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      await this._apiFetch(
+        "DELETE",
+        `/fonts/${encodeURIComponent(filename)}`,
       );
-      if (!res.ok) throw new Error(res.statusText);
       this._toast(`${this.t.toast_deleted} ${filename}`);
       await this._loadFonts();
     } catch (err) {
